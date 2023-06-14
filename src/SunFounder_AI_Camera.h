@@ -116,6 +116,8 @@ class AiCamera {
     void setOnReceived(void (*func)(char*, char*));
     void setCommandTimeout(uint32_t _timeout);
     void loop();
+  
+    void sendData();
 
     int16_t getSlider(uint8_t region);
     bool getButton(uint8_t region);
@@ -132,7 +134,6 @@ class AiCamera {
 
   private:
     void readInto(char* buffer);
-    void sendData();
     void debug(char* msg);
 
     void command(const char* command, const char* value, char* result) ;

@@ -117,7 +117,7 @@ void AiCamera::loop() {
     }
     // recv WS+ data
     else if (IsStartWith(recvBuffer, WS_HEADER)) {
-      // debug("RX:"); debug(recvBuffer);
+      debug("RX:"); debug(recvBuffer);
       // DateSerial.print("RX:"); DateSerial.println(recvBuffer);
       ws_connected = true;
       this->subString(recvBuffer, strlen(WS_HEADER));

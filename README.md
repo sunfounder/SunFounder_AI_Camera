@@ -4,6 +4,8 @@ In the process of Arduino board communication with the SunFounder Controller app
 
 Please note that the examples provided assume usage within an Arduino-like environment. Adjustments may be needed based on the specific programming context.
 
+---
+
 ### Robot Get the APP's Data
 
 **getSlider(uint8_t region)**

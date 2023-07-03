@@ -82,7 +82,7 @@ void AiCamera::begin(const char* ssid, const char* password, const char* wifiMod
  *         
  * @param func  callback function pointer
  */
-void AiCamera::setOnReceived(void (*func)(char*, char*)) { __onReceive__ = func; }
+void AiCamera::setOnReceived(void (*func)()) { __onReceive__ = func; }
 
 
 /**
@@ -572,7 +572,7 @@ void AiCamera::getStrOf(char* str, uint8_t index, char* result, char divider) {
  * @param value the value to be filled
  * @param divider
  */
-void AiCamera::setStrOf(char* str, uint8_t index, String value, char divider=';') {
+void AiCamera::setStrOf(char* str, uint8_t index, String value, char divider) {
   uint8_t start, end;
   uint8_t length = strlen(str);
   uint8_t i, j;
@@ -610,7 +610,7 @@ void AiCamera::setStrOf(char* str, uint8_t index, String value, char divider=';'
  * @param index which index do you wish to return
  * @param divider
  */
-int16_t AiCamera::getIntOf(char* str, uint8_t index, char divider=';') {
+int16_t AiCamera::getIntOf(char* str, uint8_t index, char divider) {
   int16_t result;
   char strResult[20];
   getStrOf(str, index, strResult, divider);

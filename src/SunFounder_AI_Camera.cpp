@@ -243,18 +243,18 @@ void AiCamera::setCommandTimeout(uint32_t _timeout) {
  * @param value
  * @param result returned information from serial
  */
-void AiCamera::command(const char* command, const char* value, char* result) {
+void AiCamera::command(const char* command, const char* value, char* result, bool wait) {
   bool is_ok = false;
   uint8_t retry_count = 0;
   uint8_t retryMaxCount = 3;
 
   while (retry_count < retryMaxCount) {
-    // if (retry_count == 0) {
-      DateSerial.print(F("SET+"));
-      DateSerial.print(command);
-      DateSerial.println(value);
-      DateSerial.print(F("..."));
-    // }
+    DateSerial.print(F("SET+"));
+    DateSerial.print(command);
+    DateSerial.println(value);
+    DateSerial.print(F("..."));
+    if (!wait) return; // if not waiting, return immediately
+
     retry_count++;
 
     uint32_t st = millis();
@@ -288,9 +288,9 @@ void AiCamera::command(const char* command, const char* value, char* result) {
  * 
  * @param command command keyword
  */
-void AiCamera::set(const char* command) {
+void AiCamera::set(const char* command, bool wait) {
   char result[10];
-  this->command(command, "", result);
+  this->command(command, "", result, wait);
 }
 
 /** 
@@ -309,9 +309,9 @@ void AiCamera::set(const char* command) {
  * @endcode
  * 
  */
-void AiCamera::set(const char* command, const char* value) {
+void AiCamera::set(const char* command, const char* value, bool wait) {
   char result[10];
-  this->command(command, value, result);
+  this->command(command, value, result, wait);
 }
 
 /** 
@@ -632,3 +632,10 @@ double AiCamera::getDoubleOf(char* str, uint8_t index) {
   return result;
 }
 
+void AiCamera::lamp_on(void) {
+  set("LAMP", "1", false);
+}
+
+void AiCamera::lamp_off(void) {
+  set("LAMP", "0", false);
+}

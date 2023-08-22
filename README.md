@@ -206,3 +206,13 @@ aiCam.sendDoc["L"] = {90, usDistance}; // for radar widget
 ```
 
 ---
+### Switch Flash Lamp
+
+**Example**
+```cpp
+aiCam.lamp_on(); // turn on cam lamp
+aiCam.lamp_off(); // turn off cam lamp
+
+```
+
+---

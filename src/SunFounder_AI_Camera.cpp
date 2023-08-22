@@ -632,8 +632,8 @@ double AiCamera::getDoubleOf(char* str, uint8_t index) {
   return result;
 }
 
-void AiCamera::lamp_on(void) {
-  set("LAMP", "1", false);
+void AiCamera::lamp_on(uint8_t level) {
+  set("LAMP", (char*)String(level).c_str(), false);
 }
 
 void AiCamera::lamp_off(void) {

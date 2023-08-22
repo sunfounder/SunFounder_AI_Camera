@@ -130,7 +130,7 @@ class AiCamera {
     void setGreyscale(uint8_t region, uint16_t value1, uint16_t value2, uint16_t value3);
     void setValue(uint8_t region, double value);
 
-    void lamp_on(void);
+    void lamp_on(uint8_t level=5);
     void lamp_off(void);
 
   private:

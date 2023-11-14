@@ -130,13 +130,16 @@ class AiCamera {
     void setGreyscale(uint8_t region, uint16_t value1, uint16_t value2, uint16_t value3);
     void setValue(uint8_t region, double value);
 
+    void lamp_on(uint8_t level=5);
+    void lamp_off(void);
+
   private:
     void readInto(char* buffer);
     void debug(char* msg);
 
-    void command(const char* command, const char* value, char* result) ;
-    void set(const char* command);
-    void set(const char* command, const char* value);
+    void command(const char* command, const char* value, char* result, bool wait=true);
+    void set(const char* command, bool wait=true);
+    void set(const char* command, const char* value, bool wait=true);
     void get(const char* command, char* result);
     void get(const char* command, const char* value, char* result);
 

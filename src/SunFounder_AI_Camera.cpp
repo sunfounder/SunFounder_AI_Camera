@@ -45,8 +45,8 @@ AiCamera::AiCamera(const char* _name, const char* _type) {
  * @param wsPort websocket server port
  */
 void AiCamera::begin(const char* ssid, const char* password, const char* wifiMode, const char* wsPort) {
-  #ifdef AI_CAM_DEBUG_CUSTOM
-  DateSerial.begin(115200);
+  #ifdef ARDUINO_MINIMA
+  DataSerial.begin(115200);
   #endif
   char ip[25];
   char version[25];
@@ -118,7 +118,7 @@ void AiCamera::loop() {
     // recv WS+ data
     else if (IsStartWith(recvBuffer, WS_HEADER)) {
       debug("RX:"); debug(recvBuffer);
-      // DateSerial.print("RX:"); DateSerial.println(recvBuffer);
+      // DataSerial.print("RX:"); DataSerial.println(recvBuffer);
       ws_connected = true;
       this->subString(recvBuffer, strlen(WS_HEADER));
       if (__onReceive__ != NULL) {
@@ -187,13 +187,13 @@ void AiCamera::readInto(char* buffer) {
   uint32_t char_time = millis();
   
   // recv Byte
-  while (DateSerial.available()) {
+  while (DataSerial.available()) {
     count += 1;
     if (count > WS_BUFFER_SIZE) {
       finished = true;
       break;
     }
-    inchar = (char)DateSerial.read();
+    inchar = (char)DataSerial.read();
     // Serial.print(inchar);
     if (inchar == '\n') {
       finished = true;
@@ -222,20 +222,23 @@ void AiCamera::readInto(char* buffer) {
 
 /** 
  * @brief Serial port sends data, automatically adds header (WS_HEADER)
- *         
- * @param sendBuffer  Pointer to the character value of the data buffer to be sent
  */
 void AiCamera::sendData() {
-  DateSerial.print(F(WS_HEADER));
+  DataSerial.print(F(WS_HEADER));
   // sendDoc["A"] = 0;
-  serializeJson(sendDoc, DateSerial);
-  DateSerial.print("\n");
+  serializeJson(sendDoc, DataSerial);
+  DataSerial.print("\n");
 }
 
-
+/**
+ * @brief Set command timeout
+ * 
+ * @param _timeout timeout value
+ */
 void AiCamera::setCommandTimeout(uint32_t _timeout) {
   cmdTimeout = _timeout;
 }
+
 /** 
  * @brief Send command to ESP32-CAM with serial
  *         
@@ -250,10 +253,10 @@ void AiCamera::command(const char* command, const char* value, char* result) {
 
   while (retry_count < retryMaxCount) {
     // if (retry_count == 0) {
-      DateSerial.print(F("SET+"));
-      DateSerial.print(command);
-      DateSerial.println(value);
-      DateSerial.print(F("..."));
+      DataSerial.print(F("SET+"));
+      DataSerial.print(command);
+      DataSerial.println(value);
+      DataSerial.print(F("..."));
     // }
     retry_count++;
 
@@ -262,7 +265,7 @@ void AiCamera::command(const char* command, const char* value, char* result) {
       this->readInto(recvBuffer);
       if (IsStartWith(recvBuffer, OK_FLAG)) {
         is_ok = true;
-        DateSerial.println(F(OK_FLAG));
+        DataSerial.println(F(OK_FLAG));
         this->subString(recvBuffer, strlen(OK_FLAG) + 1); // Add 1 for Space
         // !!! Note that the reslut size here is too small and may be out of bounds, 
         // causing unexpected data changes
@@ -459,7 +462,6 @@ void AiCamera::getSpeech(uint8_t region, char* result) {
 /** 
  * @brief Fill the value of Meter display component into the buf to be sent
  *         
- * @param buf string pointer to be sent  
  * @param region the key of component
  * @param value the value to be filled
  */
@@ -470,7 +472,6 @@ void AiCamera::setMeter(uint8_t region, double value) {
 /** 
  * @brief Fill the value of Radar display component into the buf to be sent
  *         
- * @param buf string pointer to be sent  
  * @param region the key of component
  * @param angle the orientation of the obstacle
  * @param distance the distance of the obstacle
@@ -482,7 +483,6 @@ void AiCamera::setRadar(uint8_t region, int16_t angle, double distance) {
 /** 
  * @brief Fill the value of 3-way grayscale display component into the buf to be sent
  *         
- * @param buf string pointer to be sent  
  * @param region the key of component
  * @param value1 
  * @param value2  
@@ -501,7 +501,7 @@ void AiCamera::setValue(uint8_t region, double value) {
 /** 
  * @brief subtract part of the string
  *         
- * @param buf string pointer to be subtract  
+ * @param str string pointer to be subtract  
  * @param start start position of content to be subtracted
  * @param end end position of Content to be subtracted
  */
@@ -523,7 +523,7 @@ void AiCamera::subString(char* str, int16_t start, int16_t end) {
  * @brief Split the string by a cdivider,
  *         and return characters of the selected index
  *
- * @param buf string pointer to be split  
+ * @param str string pointer to be split  
  * @param index which index do you wish to return
  * @param result char array pointer to hold the result
  * @param divider

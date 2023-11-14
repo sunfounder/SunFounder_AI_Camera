@@ -11,10 +11,10 @@
 */
 // #define AI_CAM_DEBUG_CUSTOM
 #ifdef ARDUINO_MINIMA
-  #define DateSerial Serial1
+  #define DataSerial Serial1
   #define DebugSerial Serial
 #else
-  #define DateSerial Serial
+  #define DataSerial Serial
   #define DebugSerial Serial
 #endif
 

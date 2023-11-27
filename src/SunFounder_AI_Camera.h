@@ -32,10 +32,18 @@
 #define OK_FLAG "[OK]"
 #define ERROR_FLAG "[ERR]"
 #define WS_HEADER "WS+"
+#define WS_BIN_HEADER "WSB+"
 #define CAM_INIT "[Init]"
 #define WS_CONNECT "[CONNECTED]"
 #define WS_DISCONNECT "[DISCONNECTED]"
 #define APP_STOP "[APPSTOP]"
+
+/**
+ * Binary data defines
+ */
+#define WS_BIN_HEADER_LENGTH 4
+#define BIN_START_BYTE 0xA0
+#define BIN_END_BYTE 0xA1
 
 /**
  * @name Set the print level of information received by esp32-cam
@@ -102,20 +110,30 @@
 #define REGION_Y 24
 #define REGION_Z 25
 
+#define MINIMAL_VERSION_MAJOR 1
+#define MINIMAL_VERSION_MINOR 4
+#define MINIMAL_VERSION_PATCH 0
+
+#define WS_BUFFER_TYPE_TEXT 0
+#define WS_BUFFER_TYPE_BINARY 1
 
 class AiCamera {
   public:
     bool ws_connected = false;
-    char recvBuffer[WS_BUFFER_SIZE];
+    uint8_t recvBuffer[WS_BUFFER_SIZE];
+    uint8_t recvBufferType = WS_BUFFER_TYPE_TEXT;
+    uint8_t recvBufferLength = 0;
     StaticJsonDocument<200> sendDoc;
 
     AiCamera(const char* name, const char* type);
-    void begin(const char* ssid, const char* password, const char* wifiMode, const char* wsPort);
+    void begin(const char* ssid, const char* password, const char* wsPort="8765", bool autoSend=true);
     void setOnReceived(void (*func)());
+    void setOnReceivedBinary(void (*func)());
     void setCommandTimeout(uint32_t _timeout);
     void loop();
   
     void sendData();
+    void sendBinaryData(uint8_t* data, size_t len);
 
     int16_t getSlider(uint8_t region);
     bool getButton(uint8_t region);
@@ -133,7 +151,10 @@ class AiCamera {
     void lamp_on(uint8_t level=5);
     void lamp_off(void);
 
+    void reset(bool wait=true);
+
   private:
+    bool autoSend = true;
     void readInto(char* buffer);
     void debug(char* msg);
 
@@ -149,6 +170,8 @@ class AiCamera {
     int16_t getIntOf(char* str, uint8_t index, char divider=';');
     bool getBoolOf(char* str, uint8_t index);
     double getDoubleOf(char* str, uint8_t index);
+
+    bool checkFirmwareVersion(String version);
 };
 
 #endif // __SUNFOUNDER_AI_CAMERA_H__

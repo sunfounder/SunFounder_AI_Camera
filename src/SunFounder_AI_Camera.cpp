@@ -24,6 +24,7 @@ char type[25];
 * Declare the receive callback function
 */
 void (*__onReceive__)();
+void (*__onReceiveBinary__)();
 
 /**
  * @brief instantiate AiCamera Class, set name and type
@@ -44,26 +45,36 @@ AiCamera::AiCamera(const char* _name, const char* _type) {
  * @param wifiMode  0,None; 1, STA; 2, AP
  * @param wsPort websocket server port
  */
-void AiCamera::begin(const char* ssid, const char* password, const char* wifiMode, const char* wsPort) {
+void AiCamera::begin(const char* ssid, const char* password, const char* wsPort, bool autoSend) {
   #ifdef ARDUINO_MINIMA
   DataSerial.begin(115200);
   #endif
   char ip[25];
   char version[25];
+  this->autoSend = autoSend;
 
   setCommandTimeout(3000);
   this->get("RESET", version);
   DebugSerial.print(F("ESP32 firmware version ")); DebugSerial.println(version);
+  if (!checkFirmwareVersion(String(version))) {
+    DebugSerial.print(F("ESP32 firmware version not match, minial firmware version is "));
+    DebugSerial.print(MINIMAL_VERSION_MAJOR);
+    DebugSerial.print(F("."));
+    DebugSerial.print(MINIMAL_VERSION_MINOR);
+    DebugSerial.print(F("."));
+    DebugSerial.println(MINIMAL_VERSION_PATCH);
+    DataSerial.println(F("ESP32 firmware version not match"));
+    return;
+  }
   
   setCommandTimeout(1000);
   this->set("NAME", name);
   this->set("TYPE", type);
-  this->set("SSID", ssid);
-  this->set("PSK",  password);
-  this->set("MODE", wifiMode);
+  this->set("APSSID", ssid);
+  this->set("APPSK",  password);
   this->set("PORT", wsPort);
 
-  setCommandTimeout(5000);
+  setCommandTimeout(10000);
   this->get("START", ip);
   delay(20);
   DebugSerial.print(F("WebServer started on ws://"));
@@ -78,11 +89,18 @@ void AiCamera::begin(const char* ssid, const char* password, const char* wifiMod
 }
 
 /**
- * @brief Set callback function method
+ * @brief Set callback function method for receive
  *         
  * @param func  callback function pointer
  */
 void AiCamera::setOnReceived(void (*func)()) { __onReceive__ = func; }
+
+/**
+ * @brief Set callback function method for receive binary
+ *         
+ * @param func  callback function pointer
+ */
+void AiCamera::setOnReceivedBinary(void (*func)()) { __onReceiveBinary__ = func; }
 
 
 /**
@@ -129,14 +147,23 @@ void AiCamera::loop() {
         // }
       }
     }
-
-    // send data
-    // this->sendData();
-    if (millis() - wsSendTime > wsSendInterval) {
-      this->sendData();
-      wsSendTime = millis();
+    // recv WSB+ binary data
+    else if (recvBufferType == WS_BUFFER_TYPE_BINARY) {
+      Serial.println("Websocket Binary data received");
+      debug("RX:"); debug(recvBuffer);
+      ws_connected = true;
+      // this->subString(recvBuffer, strlen(WS_BIN_HEADER));
+      if (__onReceiveBinary__ != NULL) {
+        __onReceiveBinary__();
+      }
     }
 
+    if (this->autoSend) {
+      if (millis() - wsSendTime > wsSendInterval) {
+        this->sendData();
+        wsSendTime = millis();
+      }
+    }
   }
 }
 
@@ -180,9 +207,14 @@ void AiCamera::debug(char* msg) {
 void AiCamera::readInto(char* buffer) {
   /* !!! attention buffer size*/
   bool finished = false;
-  char inchar;
-  StrClear(buffer);
+  bool isBinary = false;
+  bool binaryDataStarted = false;
+  uint8_t binaryByteCount = 0;
+  uint8_t binaryDataLength = 0;
+  uint8_t binaryChecksum = 0;
+  uint8_t inchar;
   uint32_t count = 0;
+  StrClear(buffer);
 
   uint32_t char_time = millis();
   
@@ -193,23 +225,84 @@ void AiCamera::readInto(char* buffer) {
       finished = true;
       break;
     }
-    inchar = (char)DataSerial.read();
-    // Serial.print(inchar);
-    if (inchar == '\n') {
-      finished = true;
-      // Serial.println(">");
-      break;
-    } else if (inchar == '\r') {
-      continue;
-    } else if ((int)inchar > 31 && (int)inchar < 127) {
-      StrAppend(buffer, inchar);
-      delay(1); // Wait for StrAppend
+    inchar = (uint8_t)DataSerial.read();
+    if (isBinary) {
+      // Start Byte
+      // DebugSerial.print(binaryByteCount);
+      // DebugSerial.print("binaryDataStarted: ");DebugSerial.println(binaryDataStarted);
+      // DebugSerial.print(": 0x");DebugSerial.println(inchar, HEX);
+      if (!binaryDataStarted && binaryByteCount == 0){
+        if (inchar == BIN_START_BYTE) {
+          // DebugSerial.println("binary start");
+          binaryDataStarted = true;
+          StrClear(buffer);
+          binaryByteCount = 1;
+          continue;
+        } else {
+          DebugSerial.print("binary start byte error: 0x");DebugSerial.println(inchar, HEX);
+          continue;
+        }
+      } // Length Byte 
+      else if (binaryDataStarted && binaryByteCount == 1) {
+        binaryDataLength = inchar;
+        // DebugSerial.print("data length: ");DebugSerial.println(binaryDataLength);
+      } // Checksum Byte
+      else if (binaryDataStarted && binaryByteCount == 2) {
+        binaryChecksum = inchar;
+        // DebugSerial.print("checksum: ");DebugSerial.println(binaryChecksum);
+      } // End Byte
+      else if (binaryDataStarted && binaryByteCount == binaryDataLength + 3) {
+        if (inchar != BIN_END_BYTE) {
+          DebugSerial.println("end byte error");
+          continue;
+        }
+        // DebugSerial.println("binary end byte");
+        binaryDataStarted = false;
+        binaryByteCount = 0;
+        uint8_t checksum = buffer[0];
+        for (uint8_t i = 1; i < binaryDataLength; i++) {
+          checksum ^= buffer[i];
+        }
+        if (checksum != binaryChecksum) {
+          DebugSerial.print("checksum error, expect: ");DebugSerial.print(checksum);DebugSerial.print(", actual: ");DebugSerial.println(binaryChecksum);
+          continue;
+        }
+        finished = true;
+        break;
+      } // Data Byte
+      else if (binaryDataStarted) {
+        uint8_t index = binaryByteCount - 3;
+        // DebugSerial.print("index: ");DebugSerial.print(index);
+        // DebugSerial.print(", data: 0x");DebugSerial.println(inchar, HEX);
+        buffer[index] = inchar;
+      }
+      binaryByteCount += 1;
+    } else {
+      if (inchar == '\n') {
+        finished = true;
+        break;
+      } else if (inchar == '\r') {
+        continue;
+      } else if ((int)inchar > 31 && (int)inchar < 127) {
+        StrAppend(buffer, inchar);
+        if (IsStartWith(buffer, WS_BIN_HEADER)) {
+          // DebugSerial.println("binary data start");
+          isBinary = true;
+        }
+        delay(1); // Wait for StrAppend
+      }
     }
   }
 
   // if recv debug info
   if (finished) {
-    debug(buffer);
+    if (isBinary) {
+      recvBufferType = WS_BUFFER_TYPE_BINARY;
+      recvBufferLength = binaryDataLength;
+    } else {
+      debug(buffer);
+      recvBufferType = WS_BUFFER_TYPE_TEXT;
+    }
     if (IsStartWith(buffer, CAM_DEBUG_HEAD_DEBUG)) {
       #if (CAM_DEBUG_LEVEL ==  CAM_DEBUG_LEVEL_DEBUG) // all
         DebugSerial.print(CAM_DEBUG_HEAD_DEBUG);
@@ -227,6 +320,18 @@ void AiCamera::sendData() {
   DataSerial.print(F(WS_HEADER));
   // sendDoc["A"] = 0;
   serializeJson(sendDoc, DataSerial);
+  DataSerial.print("\n");
+}
+
+/**
+ * @brief Send binary data
+ * 
+ * @param data binary data
+ * @param len data length
+ */
+void AiCamera::sendBinaryData(uint8_t* data, size_t len) {
+  DataSerial.print(F(WS_BIN_HEADER));
+  DataSerial.write(data, len);
   DataSerial.print("\n");
 }
 
@@ -252,6 +357,7 @@ void AiCamera::command(const char* command, const char* value, char* result, boo
   uint8_t retryMaxCount = 3;
 
   while (retry_count < retryMaxCount) {
+    DataSerial.flush();
     DataSerial.print(F("SET+"));
     DataSerial.print(command);
     DataSerial.println(value);
@@ -263,6 +369,8 @@ void AiCamera::command(const char* command, const char* value, char* result, boo
     uint32_t st = millis();
     while ((millis() - st) < cmdTimeout) {
       this->readInto(recvBuffer);
+      // if (recvBuffer[0] == 0) continue;
+      // DebugSerial.println(recvBuffer);
       if (IsStartWith(recvBuffer, OK_FLAG)) {
         is_ok = true;
         DataSerial.println(F(OK_FLAG));
@@ -283,7 +391,7 @@ void AiCamera::command(const char* command, const char* value, char* result, boo
     Serial.println(F("[FAIL]"));
     while(1);
   }
-
+  DataSerial.flush();
 }
 
 /** 
@@ -638,4 +746,38 @@ void AiCamera::lamp_on(uint8_t level) {
 
 void AiCamera::lamp_off(void) {
   set("LAMP", "0", false);
+}
+
+/**
+ * @brief Check the firmware version of the camera
+ * Check if the firmware version of the camera greater than or equal to the version
+ * 
+ * @param version the version to be compared
+ */
+bool AiCamera::checkFirmwareVersion(String version) {
+  String temp;
+  int major = version.substring(0, version.indexOf(".")).toInt();
+  temp = version.substring(version.indexOf(".")+1, version.length());
+  int minor = temp.substring(0, temp.indexOf(".")).toInt();
+  temp = temp.substring(temp.indexOf(".")+1, temp.length());
+  int patch = temp.substring(0, temp.indexOf(".")).toInt();
+  if (major < MINIMAL_VERSION_MAJOR) {
+    return false;
+  }
+  if (minor < MINIMAL_VERSION_MINOR) {
+    return false;
+  }
+  if (patch < MINIMAL_VERSION_PATCH) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * @brief Reset the camera
+ * 
+ * @param wait wait for the camera to restart
+ */
+void AiCamera::reset(bool wait) {
+  set("RESET", wait);
 }

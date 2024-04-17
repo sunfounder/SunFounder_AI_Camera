@@ -108,22 +108,22 @@ void AiCamera::setOnReceivedBinary(void (*func)()) { __onReceiveBinary__ = func;
  */
 void AiCamera::loop() {
   this->readInto(recvBuffer);
-  if (strlen(recvBuffer) != 0) {
+  if (strlen(recvBuffer) != 0 || recvBufferType != WS_BUFFER_TYPE_NONE ) {
     // Serial.print("recv: ");Serial.println(recvBuffer);
 
     // ESP32-CAM reboot detection
     if (IsStartWith(recvBuffer, CAM_INIT)) {
-      Serial.println(F("ESP32-CAM reboot detected"));
+      // Serial.println(F("ESP32-CAM reboot detected"));
       ws_connected = false;
     }
     // ESP32-CAM websocket connected
     else if (IsStartWith(recvBuffer, WS_CONNECT)) {
-      Serial.println(F("ESP32-CAM websocket connected"));
+      // Serial.println(F("ESP32-CAM websocket connected"));
       ws_connected = true;
     }   
     // ESP32-CAM websocket disconnected
     else if (IsStartWith(recvBuffer, WS_DISCONNECT)) {
-      Serial.println(F("ESP32-CAM websocket disconnected"));
+      // Serial.println(F("ESP32-CAM websocket disconnected"));
       ws_connected = false;
     }
     // ESP32-CAM APP_STOP
@@ -149,8 +149,6 @@ void AiCamera::loop() {
     }
     // recv WSB+ binary data
     else if (recvBufferType == WS_BUFFER_TYPE_BINARY) {
-      Serial.println("Websocket Binary data received");
-      debug("RX:"); debug(recvBuffer);
       ws_connected = true;
       // this->subString(recvBuffer, strlen(WS_BIN_HEADER));
       if (__onReceiveBinary__ != NULL) {
@@ -164,6 +162,8 @@ void AiCamera::loop() {
         wsSendTime = millis();
       }
     }
+
+    recvBufferType = WS_BUFFER_TYPE_NONE;
   }
 }
 
@@ -228,9 +228,9 @@ void AiCamera::readInto(char* buffer) {
     inchar = (uint8_t)DataSerial.read();
     if (isBinary) {
       // Start Byte
+      // DebugSerial.print(F("binaryDataStarted: "));DebugSerial.println(binaryDataStarted);
       // DebugSerial.print(binaryByteCount);
-      // DebugSerial.print("binaryDataStarted: ");DebugSerial.println(binaryDataStarted);
-      // DebugSerial.print(": 0x");DebugSerial.println(inchar, HEX);
+      // DebugSerial.print(F(": 0x"));DebugSerial.println(inchar, HEX);
       if (!binaryDataStarted && binaryByteCount == 0){
         if (inchar == BIN_START_BYTE) {
           // DebugSerial.println("binary start");
@@ -239,35 +239,35 @@ void AiCamera::readInto(char* buffer) {
           binaryByteCount = 1;
           continue;
         } else {
-          DebugSerial.print("binary start byte error: 0x");DebugSerial.println(inchar, HEX);
+          DebugSerial.print(F("binary start byte error: 0x"));DebugSerial.println(inchar, HEX);
           continue;
         }
       } // Length Byte 
       else if (binaryDataStarted && binaryByteCount == 1) {
         binaryDataLength = inchar;
-        // DebugSerial.print("data length: ");DebugSerial.println(binaryDataLength);
+        // DebugSerial.print(F("data length: "));DebugSerial.println(binaryDataLength);
       } // Checksum Byte
       else if (binaryDataStarted && binaryByteCount == 2) {
         binaryChecksum = inchar;
-        // DebugSerial.print("checksum: ");DebugSerial.println(binaryChecksum);
+        // DebugSerial.print(F("checksum: "));DebugSerial.println(binaryChecksum);
       } // End Byte
       else if (binaryDataStarted && binaryByteCount == binaryDataLength + 3) {
         if (inchar != BIN_END_BYTE) {
-          DebugSerial.println("end byte error");
+          DebugSerial.println(F("end byte error"));
           continue;
         }
-        // DebugSerial.println("binary end byte");
-        binaryDataStarted = false;
-        binaryByteCount = 0;
+        // DebugSerial.println(F("binary end byte"));
         uint8_t checksum = buffer[0];
         for (uint8_t i = 1; i < binaryDataLength; i++) {
           checksum ^= buffer[i];
         }
         if (checksum != binaryChecksum) {
-          DebugSerial.print("checksum error, expect: ");DebugSerial.print(checksum);DebugSerial.print(", actual: ");DebugSerial.println(binaryChecksum);
+          DebugSerial.print(F("checksum error, expect: "));DebugSerial.print(checksum);DebugSerial.print(", actual: ");DebugSerial.println(binaryChecksum);
           continue;
         }
         finished = true;
+        binaryDataStarted = false;
+        binaryByteCount = 0;
         break;
       } // Data Byte
       else if (binaryDataStarted) {
@@ -453,7 +453,6 @@ void AiCamera::get(const char* command, const char* value, char* result) {
   this->command(command, value, result);
 }
 
-
 /** 
  * @brief Interpret the value of the slider contorl component from the buf string
  *         
@@ -605,7 +604,6 @@ void AiCamera::setValue(uint8_t region, double value) {
   setStrOf(recvBuffer, region, String(value));
 }
 
-
 /** 
  * @brief subtract part of the string
  *         
@@ -756,6 +754,7 @@ void AiCamera::lamp_off(void) {
  */
 bool AiCamera::checkFirmwareVersion(String version) {
   String temp;
+  Serial.print(F("checkFirmwareVersion: "));Serial.println(version);
   int major = version.substring(0, version.indexOf(".")).toInt();
   temp = version.substring(version.indexOf(".")+1, version.length());
   int minor = temp.substring(0, temp.indexOf(".")).toInt();

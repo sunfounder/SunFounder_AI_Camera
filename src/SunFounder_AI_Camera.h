@@ -114,8 +114,9 @@
 #define MINIMAL_VERSION_MINOR 4
 #define MINIMAL_VERSION_PATCH 0
 
-#define WS_BUFFER_TYPE_TEXT 0
-#define WS_BUFFER_TYPE_BINARY 1
+#define WS_BUFFER_TYPE_NONE 0
+#define WS_BUFFER_TYPE_TEXT 1
+#define WS_BUFFER_TYPE_BINARY 2
 
 class AiCamera {
   public:

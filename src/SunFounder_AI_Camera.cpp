@@ -754,6 +754,7 @@ void AiCamera::lamp_off(void) {
  */
 bool AiCamera::checkFirmwareVersion(String version) {
   String temp;
+  Serial.print(F("checkFirmwareVersion: "));Serial.println(version);
   int major = version.substring(0, version.indexOf(".")).toInt();
   temp = version.substring(version.indexOf(".")+1, version.length());
   int minor = temp.substring(0, temp.indexOf(".")).toInt();

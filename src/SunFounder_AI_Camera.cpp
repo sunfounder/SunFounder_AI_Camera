@@ -106,6 +106,7 @@ void AiCamera::begin(const char *ssid, const char *password, const char *wsPort,
 
   setCommandTimeout(3000);
   this->get("RESET", version);
+  strncpy(this->cameraFirmwareVersion, version, sizeof(this->cameraFirmwareVersion) - 1);
   DebugSerial.print(F("ESP32 firmware version "));
   DebugSerial.println(version);
   if (!checkFirmwareVersion(String(version)))
@@ -117,6 +118,35 @@ void AiCamera::begin(const char *ssid, const char *password, const char *wsPort,
     DebugSerial.print(F("."));
     DebugSerial.println(MINIMAL_VERSION_PATCH);
     DataSerial.println(F("ESP32 firmware version not match"));
+    return;
+  }
+
+  // ── Legacy camera firmware (1.4.x) ───────────────────────────────────
+  // Only firmware >= 1.5.0 understands APSSID / APPSK; 1.4.x knows
+  // SSID / PSK / MODE instead. Sending APSSID to a 1.4.x camera returns
+  // [ERROR], command() never sees [OK] and eventually ends in while (1),
+  // which used to leave the board stuck in setup(). Configure legacy cameras
+  // with the old command set so their access point and settings page come up
+  // and the user can flash new camera firmware over the air.
+  if (isLegacyFirmware(version))
+  {
+    this->cameraFirmwareLegacy = true;
+
+    setCommandTimeout(1000);
+    this->set("NAME", name);
+    this->set("TYPE", type);
+    this->set("SSID", ssid);
+    this->set("PSK", password);
+    this->set("MODE", WIFI_MODE_AP);
+    this->set("PORT", wsPort);
+
+    setCommandTimeout(5000);
+    this->get("START", ip);
+    delay(20);
+    DebugSerial.print(F("Legacy ESP32-CAM: AP up, settings page on http://"));
+    DebugSerial.println(ip);
+
+    setCommandTimeout(SERIAL_TIMEOUT);
     return;
   }
 
@@ -924,6 +954,30 @@ void AiCamera::lamp_off(void)
  *
  * @param version the version to be compared
  */
+/**
+ * @brief Check whether the camera firmware uses the legacy command set (1.4.x)
+ *
+ * @param version Version reported by the camera, e.g. "1.4.3"
+ * @return true when the legacy command set must be used
+ */
+bool AiCamera::isLegacyFirmware(const char *version)
+{
+  String v(version);
+  int dot = v.indexOf(".");
+  if (dot < 0)
+  {
+    return true; // no parsable version - treat it as legacy, that path is safer
+  }
+  int major = v.substring(0, dot).toInt();
+  String rest = v.substring(dot + 1);
+  int minor = rest.substring(0, rest.indexOf(".")).toInt();
+  if (major != 1)
+  {
+    return major < 1;
+  }
+  return minor < 5;
+}
+
 bool AiCamera::checkFirmwareVersion(String version)
 {
   String temp;

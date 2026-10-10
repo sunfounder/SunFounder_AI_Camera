@@ -121,15 +121,16 @@ void AiCamera::begin(const char *ssid, const char *password, const char *wsPort,
     return;
   }
 
-  // ── 1.4.x 兼容分支 ────────────────────────────────────────────────
-  // 1.5.0 起摄像头才认 APSSID / APPSK，1.4.x 只认 SSID / PSK / MODE。
-  // 给 1.4.x 发 APSSID 会收到 [ERROR]，command() 等不到 [OK]，
-  // 重试 3 次后 while (1) 卡死，用户既连不上摄像头也不知道为什么。
-  // 所以这里改用老命令集把摄像头的 AP + 设置页拉起来，
-  // 让用户能在浏览器里 OTA 升级摄像头固件后再重启。
+  // ── Legacy camera firmware (1.4.x) ───────────────────────────────────
+  // Only firmware >= 1.5.0 understands APSSID / APPSK; 1.4.x knows
+  // SSID / PSK / MODE instead. Sending APSSID to a 1.4.x camera returns
+  // [ERROR], command() never sees [OK] and eventually ends in while (1),
+  // which used to leave the board stuck in setup(). Configure legacy cameras
+  // with the old command set so their access point and settings page come up
+  // and the user can flash new camera firmware over the air.
   if (isLegacyFirmware(version))
   {
-    this->cameraFirmwareTooOld = true;
+    this->cameraFirmwareLegacy = true;
 
     setCommandTimeout(1000);
     this->set("NAME", name);
@@ -954,10 +955,10 @@ void AiCamera::lamp_off(void)
  * @param version the version to be compared
  */
 /**
- * @brief 判断摄像头固件是不是"老命令集"（1.4.x）
+ * @brief Check whether the camera firmware uses the legacy command set (1.4.x)
  *
- * @param version 摄像头自报的版本，如 "1.4.3"
- * @return true = 老命令集，begin() 要走兼容分支
+ * @param version Version reported by the camera, e.g. "1.4.3"
+ * @return true when the legacy command set must be used
  */
 bool AiCamera::isLegacyFirmware(const char *version)
 {
@@ -965,7 +966,7 @@ bool AiCamera::isLegacyFirmware(const char *version)
   int dot = v.indexOf(".");
   if (dot < 0)
   {
-    return true; // 读不到正常版本号，按老的走更安全
+    return true; // no parsable version - treat it as legacy, that path is safer
   }
   int major = v.substring(0, dot).toInt();
   String rest = v.substring(dot + 1);

@@ -114,11 +114,11 @@
 #define MINIMAL_VERSION_PATCH 0
 
 /**
- * 本库的版本号，供上层 sketch 做编译期校验：
+ * Library version, so sketches can enforce a minimum version at compile time:
  *   #if !defined(AI_CAMERA_VERSION_CODE) || AI_CAMERA_VERSION_CODE < 10200
- *   #error "需要 SunFounder_AI_Camera >= 1.2.0"
+ *   #error "This sketch needs SunFounder_AI_Camera >= 1.2.0"
  *   #endif
- * 注意：改版本时这里和 library.properties 要一起改。
+ * Keep this in sync with library.properties when releasing.
  */
 #define AI_CAMERA_VERSION_MAJOR 1
 #define AI_CAMERA_VERSION_MINOR 2
@@ -142,14 +142,15 @@ public:
   void begin(const char *ssid, const char *password, const char *wsPort = "8765", bool autoSend = true);
   void begin(const char *ssid, const char *password, const char *wifiMode, const char *wsPort);
 
-  /** 摄像头自报的固件版本（begin() 时读回），例如 "1.4.3" */
+  /** Camera firmware version reported by the camera, read during begin(); e.g. "1.4.3" */
   char cameraFirmwareVersion[16] = {0};
   /**
-   * true 表示摄像头是 1.4.x（老命令集）。此时 begin() 会用老命令集把摄像头的
-   * AP + 设置页拉起来，让用户连上去 OTA 升级摄像头固件；WebSocket 站不启动。
-   * 上层 sketch 看到这个标志就该提示用户去升级摄像头。
+   * true when the camera runs legacy firmware (1.4.x) that only understands the old
+   * command set. begin() then brings the camera up with those commands, so the camera
+   * access point and its settings page are available for an OTA update; the WebSocket
+   * server is not started. The sketch is expected to tell the user to update the camera.
    */
-  bool cameraFirmwareTooOld = false;
+  bool cameraFirmwareLegacy = false;
 
   void setOnReceived(void (*func)());
   void setOnReceivedBinary(void (*func)());

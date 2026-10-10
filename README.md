@@ -14,7 +14,7 @@ firmware exist, and they speak different command sets:
 | Camera firmware | What `begin(ssid, password, wsPort, autoSend)` does |
 | :-- | :-- |
 | < 1.4.0 | Not supported: prints `ESP32 firmware version not match` and returns. |
-| 1.4.x | **Compatibility mode.** 1.4.x only understands the legacy commands (`SSID` / `PSK` / `MODE`), so the library configures the camera with those. The camera starts its **access point and settings page**, and `cameraFirmwareTooOld` is set to `true`. The WebSocket server is **not** started. |
+| 1.4.x | **Compatibility mode.** 1.4.x only understands the legacy commands (`SSID` / `PSK` / `MODE`), so the library configures the camera with those. The camera starts its **access point and settings page**, and `cameraFirmwareLegacy` is set to `true`. The WebSocket server is **not** started. |
 | >= 1.5.0 | Normal operation: `APSSID` / `APPSK` / `PORT`, then `START`. |
 
 Why 1.4.x needs the special case: sending it `APSSID` gets an `[ERROR] SET+ Unknown command`
@@ -29,7 +29,7 @@ After `begin()` you can check the new public members:
 AiCamera aiCam = AiCamera(NAME, TYPE);
 aiCam.begin(AP_SSID, AP_PASSWORD, PORT, false);
 
-if (aiCam.cameraFirmwareTooOld) {
+if (aiCam.cameraFirmwareLegacy) {
   // 1.4.x camera: its AP is up, ask the user to update the camera firmware
   Serial.println(aiCam.cameraFirmwareVersion);  // e.g. "1.4.3"
 }

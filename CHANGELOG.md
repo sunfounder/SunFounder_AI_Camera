@@ -8,7 +8,7 @@
   starts the camera access point and settings page so the camera firmware can be updated
   over the air. Previously a 1.4.x camera made `command()` fail and the library hung in
   `while (1)`, leaving the board stuck in `setup()`.
-- Public members `cameraFirmwareVersion` and `cameraFirmwareTooOld`.
+- Public members `cameraFirmwareVersion` and `cameraFirmwareLegacy`.
 - `AI_CAMERA_VERSION_CODE` macro for compile-time version checks.
 
 ### Changed

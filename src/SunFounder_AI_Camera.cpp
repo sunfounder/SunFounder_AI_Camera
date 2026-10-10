@@ -10,6 +10,15 @@
   str[len + 1] = '\0'
 #define StrClear(str) str[0] = 0
 
+/**
+ * Longest payload kept from an "[OK] xxx" reply, excluding the terminating NUL.
+ * Camera 1.5.x replies with strings such as "NAME already set" (15 chars) or
+ * "AP already set" (13) whenever a setting was already stored; the old code
+ * strcpy()'d those into the 10-byte buffer set() passes here and overflowed the
+ * stack. Must stay <= the smallest buffer handed to get() (currently ip[25]).
+ */
+#define AI_CAM_REPLY_MAX 24
+
 int32_t cmdTimeout = SERIAL_TIMEOUT;
 int32_t wsSendTime = millis();
 int32_t wsSendInterval = 60; // 100
@@ -520,9 +529,11 @@ void AiCamera::command(const char *command, const char *value, char *result, boo
         is_ok = true;
         DataSerial.println(F(OK_FLAG));
         this->subString(recvBuffer, strlen(OK_FLAG) + 1); // Add 1 for Space
-        // !!! Note that the reslut size here is too small and may be out of bounds,
-        // causing unexpected data changes
-        strcpy(result, recvBuffer);
+        // Bounded copy: several camera replies are longer than the 10-byte buffer
+        // set() used to pass in ("[OK] NAME already set", "[OK] AP already set"),
+        // and the unbounded strcpy() corrupted the stack.
+        strncpy(result, recvBuffer, AI_CAM_REPLY_MAX);
+        result[AI_CAM_REPLY_MAX] = '\0';
         break;
       }
     }
@@ -549,7 +560,7 @@ void AiCamera::command(const char *command, const char *value, char *result, boo
  */
 void AiCamera::set(const char *command, bool wait)
 {
-  char result[10];
+  char result[AI_CAM_REPLY_MAX + 1];
   this->command(command, "", result, wait);
 }
 
@@ -571,7 +582,7 @@ void AiCamera::set(const char *command, bool wait)
  */
 void AiCamera::set(const char *command, const char *value, bool wait)
 {
-  char result[10];
+  char result[AI_CAM_REPLY_MAX + 1];
   this->command(command, value, result, wait);
 }
 

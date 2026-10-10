@@ -115,15 +115,15 @@
 
 /**
  * Library version, so sketches can enforce a minimum version at compile time:
- *   #if !defined(AI_CAMERA_VERSION_CODE) || AI_CAMERA_VERSION_CODE < 10200
- *   #error "This sketch needs SunFounder_AI_Camera >= 1.2.0"
+ *   #if !defined(AI_CAMERA_VERSION_CODE) || AI_CAMERA_VERSION_CODE < 10201
+ *   #error "This sketch needs SunFounder_AI_Camera >= 1.2.1"
  *   #endif
  * Keep this in sync with library.properties when releasing.
  */
 #define AI_CAMERA_VERSION_MAJOR 1
 #define AI_CAMERA_VERSION_MINOR 2
-#define AI_CAMERA_VERSION_PATCH 0
-#define AI_CAMERA_VERSION_CODE 10200
+#define AI_CAMERA_VERSION_PATCH 1
+#define AI_CAMERA_VERSION_CODE 10201
 
 #define WS_BUFFER_TYPE_NONE 0
 #define WS_BUFFER_TYPE_TEXT 1

@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.1] - 2026-10-10
+
+### Fixed
+- **Stack corruption on camera firmware 1.5.x.** `command()` copied the camera reply with an
+  unbounded `strcpy()` into the 10-byte buffer the `set()` helpers pass in, while 1.5.x
+  answers things like `[OK] NAME already set` (15 chars), `[OK] AP already set` (13) or
+  `[OK] SSID already set`. Those replies come back on every boot once the camera has the
+  setting stored, so `NAME` / `APSSID` / `APPSK` overflowed a 10-byte stack buffer by
+  5-6 bytes. Depending on the build the corruption was harmless or fatal - on GalaxyRVR
+  2.0.1 it reset the board in a loop right after the `NAME` reply. The copy is now bounded
+  (`AI_CAM_REPLY_MAX`), and the `set()` buffers are that size.
+
 ## [1.2.0] - 2026-10-10
 
 ### Added

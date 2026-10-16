@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.2] - 2026-10-16
+
+### Fixed
+- **Truncated camera replies (for example the IP address printed at startup).** `readInto()`
+  cleared its buffer and returned as soon as the serial port had no bytes left, so a reply that
+  arrived in more than one chunk was cut in the middle. The `SET+START` answer
+  `[OK] 192.168.4.1` was read as `[OK] 192.168.` often enough that the board printed
+  `Video streamer started on http://192.168.:9000/mjpg`. Bytes are now accumulated until the
+  line's `\n` arrives (`readInto()` returns whether a complete line was received, and `loop()`
+  only parses complete lines); a reply longer than `WS_BUFFER_SIZE` is truncated with a warning
+  instead of overflowing. `recvBuffer` also goes through a `RECV_STR` conversion when it is used
+  as a string, which the newer ESP32 toolchains require.
+
 ## [1.2.1] - 2026-10-10
 
 ### Fixed

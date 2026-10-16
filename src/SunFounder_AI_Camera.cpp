@@ -9,6 +9,10 @@
   str[len] = suffix;           \
   str[len + 1] = '\0'
 #define StrClear(str) str[0] = 0
+// recvBuffer is uint8_t[] (used for binary frames as well); when it is handled as a
+// string it must be cast - the newer toolchains (ESP32 core 3.x) reject the implicit
+// conversion that the AVR build accepted.
+#define RECV_STR (reinterpret_cast<char *>(recvBuffer))
 
 /**
  * Longest payload kept from an "[OK] xxx" reply, excluding the terminating NUL.
@@ -200,31 +204,31 @@ void AiCamera::setOnReceivedBinary(void (*func)()) { __onReceiveBinary__ = func;
  */
 void AiCamera::loop()
 {
-  this->readInto(recvBuffer);
-  if (strlen(recvBuffer) != 0 || recvBufferType != WS_BUFFER_TYPE_NONE)
+  // Parse only complete lines: readInto() keeps a half line in recvBuffer for the next call.
+  if (this->readInto(RECV_STR))
   {
     // Serial.print("recv: ");Serial.println(recvBuffer);
 
     // ESP32-CAM reboot detection
-    if (IsStartWith(recvBuffer, CAM_INIT))
+    if (IsStartWith(RECV_STR, CAM_INIT))
     {
       // Serial.println(F("ESP32-CAM reboot detected"));
       ws_connected = false;
     }
     // ESP32-CAM websocket connected
-    else if (IsStartWith(recvBuffer, WS_CONNECT))
+    else if (IsStartWith(RECV_STR, WS_CONNECT))
     {
       // Serial.println(F("ESP32-CAM websocket connected"));
       ws_connected = true;
     }
     // ESP32-CAM websocket disconnected
-    else if (IsStartWith(recvBuffer, WS_DISCONNECT))
+    else if (IsStartWith(RECV_STR, WS_DISCONNECT))
     {
       // Serial.println(F("ESP32-CAM websocket disconnected"));
       ws_connected = false;
     }
     // ESP32-CAM APP_STOP
-    else if (IsStartWith(recvBuffer, APP_STOP))
+    else if (IsStartWith(RECV_STR, APP_STOP))
     {
       if (ws_connected)
       {
@@ -233,13 +237,13 @@ void AiCamera::loop()
       ws_connected = false;
     }
     // recv WS+ data
-    else if (IsStartWith(recvBuffer, WS_HEADER))
+    else if (IsStartWith(RECV_STR, WS_HEADER))
     {
       debug("RX:");
-      debug(recvBuffer);
+      debug(RECV_STR);
       // DataSerial.print("RX:"); DataSerial.println(recvBuffer);
       ws_connected = true;
-      this->subString(recvBuffer, strlen(WS_HEADER));
+      this->subString(RECV_STR, strlen(WS_HEADER));
       if (__onReceive__ != NULL)
       {
         __onReceive__();
@@ -253,7 +257,7 @@ void AiCamera::loop()
     else if (recvBufferType == WS_BUFFER_TYPE_BINARY)
     {
       ws_connected = true;
-      // this->subString(recvBuffer, strlen(WS_BIN_HEADER));
+      // this->subString(RECV_STR, strlen(WS_BIN_HEADER));
       if (__onReceiveBinary__ != NULL)
       {
         __onReceiveBinary__();
@@ -316,9 +320,18 @@ void AiCamera::debug(char *msg)
 /**
  * @brief Store the data read from the serial port into the buffer
  *
+ * The camera answers over an 115200 baud link, so a single line ("[OK] 192.168.4.1")
+ * can arrive split across several reads - especially right after SET+START, when the
+ * camera also starts the websocket and mjpg servers. Bytes received so far are kept in
+ * the buffer and appended by the next call; the line is only reported once its '\n'
+ * shows up. Returning early with a half line used to lose the missing characters, and
+ * callers such as command() then saw a truncated reply ("192.168." instead of
+ * "192.168.4.1").
+ *
  * @param buffer  Pointer to the String value of the stored data
+ * @return true when a complete line (or binary frame) has been received
  */
-void AiCamera::readInto(char *buffer)
+bool AiCamera::readInto(char *buffer)
 {
   /* !!! attention buffer size*/
   bool finished = false;
@@ -329,7 +342,11 @@ void AiCamera::readInto(char *buffer)
   uint8_t binaryChecksum = 0;
   uint8_t inchar;
   uint32_t count = 0;
-  StrClear(buffer);
+
+  // Data carried over from the previous call (a line that is still incomplete) lives in
+  // buffer/recvLen already; never clear it here.
+  if (recvLen >= WS_BUFFER_SIZE)
+    recvLen = 0;
 
   uint32_t char_time = millis();
 
@@ -341,6 +358,14 @@ void AiCamera::readInto(char *buffer)
     {
       finished = true;
       break;
+    }
+    if (!isBinary && recvLen >= WS_BUFFER_SIZE - 1)
+    {
+      // Line longer than the buffer: drop the excess so nothing overflows.
+      // command() clears the buffer after every reply, so this cannot recur.
+      Serial.println(F("[WARN] camera reply longer than WS_BUFFER_SIZE, truncated"));
+      StrClear(buffer);
+      recvLen = 0;
     }
     inchar = (uint8_t)DataSerial.read();
     if (isBinary)
@@ -424,7 +449,11 @@ void AiCamera::readInto(char *buffer)
       }
       else if ((int)inchar > 31 && (int)inchar < 127)
       {
-        StrAppend(buffer, inchar);
+        if (recvLen < WS_BUFFER_SIZE - 1)
+        {
+          StrAppend(buffer, inchar);
+          recvLen = strlen(buffer);
+        }
         if (IsStartWith(buffer, WS_BIN_HEADER))
         {
           // DebugSerial.println("binary data start");
@@ -438,6 +467,7 @@ void AiCamera::readInto(char *buffer)
   // if recv debug info
   if (finished)
   {
+    recvLen = 0; // the line is complete, the next one starts from an empty buffer
     if (isBinary)
     {
       recvBufferType = WS_BUFFER_TYPE_BINARY;
@@ -457,6 +487,7 @@ void AiCamera::readInto(char *buffer)
       StrClear(buffer);
     }
   }
+  return finished;
 }
 
 /**
@@ -508,6 +539,9 @@ void AiCamera::command(const char *command, const char *value, char *result, boo
 
   while (retry_count < retryMaxCount)
   {
+    // Start from an empty line: a previous attempt may have left a partial one behind.
+    StrClear(recvBuffer);
+    recvLen = 0;
     DataSerial.flush();
     DataSerial.print(F("SET+"));
     DataSerial.print(command);
@@ -521,7 +555,10 @@ void AiCamera::command(const char *command, const char *value, char *result, boo
     uint32_t st = millis();
     while ((millis() - st) < cmdTimeout)
     {
-      this->readInto(recvBuffer);
+      // readInto() returns false while a line is still incomplete; its bytes stay in
+      // recvBuffer for the next call, and must not be parsed yet.
+      if (!this->readInto(recvBuffer))
+        continue;
       // if (recvBuffer[0] == 0) continue;
       // DebugSerial.println(recvBuffer);
       if (IsStartWith(recvBuffer, OK_FLAG))

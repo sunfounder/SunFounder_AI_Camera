@@ -122,8 +122,8 @@
  */
 #define AI_CAMERA_VERSION_MAJOR 1
 #define AI_CAMERA_VERSION_MINOR 2
-#define AI_CAMERA_VERSION_PATCH 1
-#define AI_CAMERA_VERSION_CODE 10201
+#define AI_CAMERA_VERSION_PATCH 2
+#define AI_CAMERA_VERSION_CODE 10202
 
 #define WS_BUFFER_TYPE_NONE 0
 #define WS_BUFFER_TYPE_TEXT 1
@@ -180,7 +180,13 @@ public:
 
 private:
   bool autoSend = true;
-  void readInto(char *buffer);
+  /**
+   * Bytes already stored in recvBuffer of a line whose '\n' has not arrived yet -
+   * the serial reply is often split across reads, so readInto() accumulates instead
+   * of returning (and losing) half a line.
+   */
+  uint16_t recvLen = 0;
+  bool readInto(char *buffer);
   void debug(char *msg);
 
   void command(const char *command, const char *value, char *result, bool wait = true);

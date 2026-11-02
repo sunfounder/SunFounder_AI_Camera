@@ -163,8 +163,12 @@ void AiCamera::begin(const char *ssid, const char *password, const char *wsPort,
     return;
   }
 
-  setCommandTimeout(1000);
-  delay(1000);
+  // Give the camera time to finish its own setup (WiFi access point) before configuring it.
+  // The settings commands make the camera write to its flash, and while the WiFi radio is
+  // still initialising that extra current spike was enough to trip the brown-out detector on
+  // the bench unit (camera rebooted on every command).
+  setCommandTimeout(3000);
+  delay(3000);
   this->set("NAME", name);
   this->set("TYPE", type);
   this->set("APSSID", ssid);

@@ -12,6 +12,13 @@
   no WebSocket, the LED never turns green. The buffer is now cleared at the start of the call
   after a line has been reported (a half line that is still arriving is still kept), so every
   reply is matched on its own.
+- **Settings were pushed while the camera was still booting.** After `SET+RESET` the library
+  waited 1 s and then sent `NAME` / `TYPE` / `APSSID` / `APPSK` / `PORT`, but the camera is
+  still starting its WiFi access point at that point and the settings commands make it write
+  to its flash. On a unit powered only from USB the current spike tripped the camera's
+  brown-out detector, it rebooted, and its boot message `[OK] <version>` was then taken as the
+  reply to whatever command was in flight (the board ended up with `ws://1.5.4:30102`). The
+  library now waits 3 s after the reset and uses a 3 s timeout for those commands.
 
 ## [1.2.2] - 2026-10-16
 

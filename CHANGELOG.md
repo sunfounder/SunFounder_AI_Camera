@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.2.3] - 2026-10-30
+
+### Fixed
+- **Board stuck in `setup()` after the camera reset (GalaxyRVR 2.0.3 boots into `[FAIL]`).**
+  The line-by-line reader added in 1.2.2 kept the buffer after reporting a complete line
+  (only `recvLen` was reset), so the next reply was appended to the previous line. The camera
+  answers `SET+RESET` with its boot ROM banner (`ets ...`, `rst:0xc ...`, `boot:0x13 ...`)
+  and only then `[OK] <version>`; `command()` matches replies with `IsStartWith(buffer, "[OK]")`,
+  so the handshake could never succeed - three retries, `[FAIL]`, `while (1)` in `setup()`,
+  no WebSocket, the LED never turns green. The buffer is now cleared at the start of the call
+  after a line has been reported (a half line that is still arriving is still kept), so every
+  reply is matched on its own.
+- **Settings were pushed while the camera was still booting.** After `SET+RESET` the library
+  waited 1 s and then sent `NAME` / `TYPE` / `APSSID` / `APPSK` / `PORT`, but the camera is
+  still starting its WiFi access point at that point and the settings commands make it write
+  to its flash. On a unit powered only from USB the current spike tripped the camera's
+  brown-out detector, it rebooted, and its boot message `[OK] <version>` was then taken as the
+  reply to whatever command was in flight (the board ended up with `ws://1.5.4:30102`). The
+  library now waits 3 s after the reset and uses a 3 s timeout for those commands.
+
 ## [1.2.2] - 2026-10-16
 
 ### Fixed

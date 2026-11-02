@@ -122,8 +122,8 @@
  */
 #define AI_CAMERA_VERSION_MAJOR 1
 #define AI_CAMERA_VERSION_MINOR 2
-#define AI_CAMERA_VERSION_PATCH 2
-#define AI_CAMERA_VERSION_CODE 10202
+#define AI_CAMERA_VERSION_PATCH 3
+#define AI_CAMERA_VERSION_CODE 10203
 
 #define WS_BUFFER_TYPE_NONE 0
 #define WS_BUFFER_TYPE_TEXT 1
@@ -186,6 +186,12 @@ private:
    * of returning (and losing) half a line.
    */
   uint16_t recvLen = 0;
+  /**
+   * true when the last readInto() call reported a complete line. The buffer then still
+   * holds that line (the caller needs it), so it is cleared at the start of the next call
+   * instead of at the end of this one.
+   */
+  bool lineDone = false;
   bool readInto(char *buffer);
   void debug(char *msg);
 

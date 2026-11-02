@@ -163,8 +163,12 @@ void AiCamera::begin(const char *ssid, const char *password, const char *wsPort,
     return;
   }
 
-  setCommandTimeout(1000);
-  delay(1000);
+  // Give the camera time to finish its own setup (WiFi access point) before configuring it.
+  // The settings commands make the camera write to its flash, and while the WiFi radio is
+  // still initialising that extra current spike was enough to trip the brown-out detector on
+  // the bench unit (camera rebooted on every command).
+  setCommandTimeout(3000);
+  delay(3000);
   this->set("NAME", name);
   this->set("TYPE", type);
   this->set("APSSID", ssid);
@@ -343,8 +347,18 @@ bool AiCamera::readInto(char *buffer)
   uint8_t inchar;
   uint32_t count = 0;
 
-  // Data carried over from the previous call (a line that is still incomplete) lives in
-  // buffer/recvLen already; never clear it here.
+  // A line that is still incomplete carries over from the previous call and must be kept
+  // (that is what recvLen tracks). Once a line HAS been reported, the caller has consumed
+  // it, so the buffer must start empty again: without this, the next reply is appended to
+  // the previous line, and callers that match on the start of the line (command()'s
+  // "[OK]") never match - on GalaxyRVR the camera's boot ROM banner before "[OK] <ver>"
+  // made the board fail the handshake and hang in setup().
+  if (lineDone)
+  {
+    StrClear(buffer);
+    recvLen = 0;
+    lineDone = false;
+  }
   if (recvLen >= WS_BUFFER_SIZE)
     recvLen = 0;
 
@@ -459,7 +473,9 @@ bool AiCamera::readInto(char *buffer)
           // DebugSerial.println("binary data start");
           isBinary = true;
         }
-        delay(1); // Wait for StrAppend
+        // No delay here: at 115200 a byte arrives every ~87 us, and one millisecond per
+        // character made the AVR fall behind the 64-byte hardware buffer - the camera's
+        // boot ROM banner came through with characters (and line endings) missing.
       }
     }
   }
@@ -487,6 +503,7 @@ bool AiCamera::readInto(char *buffer)
       StrClear(buffer);
     }
   }
+  lineDone = finished;
   return finished;
 }
 
